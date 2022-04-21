@@ -1,6 +1,7 @@
 package com.sacret.game;
 
 import com.sacret.board.Board;
+import com.sacret.enumeration.DifficultyLevel;
 import com.sacret.exception.OutOfBoardException;
 import com.sacret.exception.ReAttackPointException;
 import com.sacret.ship.Point;
@@ -23,7 +24,12 @@ public class Game {
         Board computerBoard = new Board();
         this.autoPlaceShips(computerBoard, false, false);
 
-        int choice = ReaderUtil.readInteger("\tWelcome to Sea Battle. \nIf you want to place ships yourself press 0, automatically press 1: ");
+        DifficultyLevel level = DifficultyLevel.valueOf(
+                ReaderUtil.readInteger("\tWelcome to Sea Battle. \n\nSelect game difficulty:  " +
+                        "0 - cheater, 1 - easy, 2 - normal, 3 - hardcore: ")
+        );
+
+        int choice = ReaderUtil.readInteger("\nIf you want to place ships yourself press 0, automatically press 1: ");
 
         if (choice == 0) {
             this.placeShips(userBoard);
@@ -34,11 +40,14 @@ public class Game {
         boolean winner;
         while (!(winner = isGameOver(computerBoard)) && !isGameOver(userBoard)) {
             System.out.print("\033[H\033[2J");
-            System.out.println("Press \"Enter\" between rounds");
+            System.out.printf("Press \"Enter\" between rounds. Game difficulty: %s\n", level.name());
             System.out.println("\n\tEnemy:\n");
 
-            computerBoard.print(false);
-//            computerBoard.print(true);
+            if (DifficultyLevel.CHEATER.equals(level)) {
+                computerBoard.print(true);
+            } else {
+                computerBoard.print(false);
+            }
 
             System.out.println("\t______________________\n");
             System.out.println("\tYou:\n");
@@ -49,11 +58,11 @@ public class Game {
 
             Point attackPoint = this.buildAttackPoint();
 
-            while (!this.attackShip(computerBoard, attackPoint)) {
+            while (!this.attackShip(computerBoard, attackPoint, level)) {
                 attackPoint = this.buildAttackPoint();
             }
 
-            this.autoAttackShip(userBoard);
+            this.autoAttackShip(userBoard, level);
 
             ReaderUtil.waiteEnter();
         }
@@ -140,90 +149,98 @@ public class Game {
         }
     }
 
-    private void autoAttackShip(Board board) {
-        Optional<Ship> hitShip = board.getShips().stream()
-                .filter(Ship::isAlive)
-                .filter(ship -> ship.getPoints().stream().anyMatch(point -> !point.isAlive()))
-                .findFirst();
-
+    private void autoAttackShip(Board board, DifficultyLevel level) {
         int x;
         int y;
 
         Point attack = null;
 
-        if (hitShip.isPresent()) {
-            List<Point> hitPoints = hitShip.get().getPoints().stream()
-                    .filter(point -> !point.isAlive())
-                    .collect(Collectors.toList());
+        if (!DifficultyLevel.EASY.equals(level)) {
+            Optional<Ship> hitShip = board.getShips().stream()
+                    .filter(Ship::isAlive)
+                    .filter(ship -> ship.getPoints().stream().anyMatch(point -> !point.isAlive()))
+                    .findFirst();
 
-            if (hitPoints.size() > 1 && hitPoints.get(0).getX() == hitPoints.get(hitPoints.size() - 1).getX()) {
-
-                if (
-                        (hitPoints.get(hitPoints.size() - 1).getY() + 1 < board.getRow())
-                        && !board.getMisses().contains(new Point(hitPoints.get(hitPoints.size() - 1).getX(), hitPoints.get(hitPoints.size() - 1).getY() + 1))
-                        && !board.getHits().contains(new Point(hitPoints.get(hitPoints.size() - 1).getX(), hitPoints.get(hitPoints.size() - 1).getY() + 1))
-                ) {
-                    attack = new Point(hitPoints.get(hitPoints.size() - 1).getX(), hitPoints.get(hitPoints.size() - 1).getY() + 1);
-                } else if (
-                        (hitPoints.get(0).getY() - 1 >= 0)
-                        && !board.getMisses().contains(new Point(hitPoints.get(0).getX(), hitPoints.get(0).getY() - 1))
-                        && !board.getHits().contains(new Point(hitPoints.get(0).getX(), hitPoints.get(0).getY() - 1))
-                ) {
-                    attack = new Point(hitPoints.get(0).getX(), hitPoints.get(0).getY() - 1);
-                } else {
-                    Optional<Point> cheatPoint = hitShip.get().getPoints().stream().filter(Point::isAlive).findFirst();
-                    if (cheatPoint.isPresent()) {
-                        attack = cheatPoint.get();
-                    }
-                }
-
-            } else if (hitPoints.size() > 1 && hitPoints.get(0).getY() == hitPoints.get(hitPoints.size() - 1).getY()) {
-
-                if (
-                        (hitPoints.get(hitPoints.size() - 1).getX() + 1 < board.getColum())
-                        && !board.getMisses().contains(new Point(hitPoints.get(hitPoints.size() - 1).getX() + 1, hitPoints.get(hitPoints.size() - 1).getY()))
-                        && !board.getHits().contains(new Point(hitPoints.get(hitPoints.size() - 1).getX() + 1, hitPoints.get(hitPoints.size() - 1).getY()))
-                ) {
-                    attack = new Point(hitPoints.get(hitPoints.size() - 1).getX() + 1, hitPoints.get(hitPoints.size() - 1).getY());
-
-                } else if (
-                        (hitPoints.get(0).getX() - 1 >= 0)
-                        && !board.getMisses().contains(new Point(hitPoints.get(0).getX() - 1, hitPoints.get(0).getY()))
-                        && !board.getHits().contains(new Point(hitPoints.get(0).getX() - 1, hitPoints.get(0).getY()))
-                ) {
-                    attack = new Point(hitPoints.get(0).getX() - 1, hitPoints.get(0).getY());
-                } else {
-                    Optional<Point> cheatPoint = hitShip.get().getPoints().stream().filter(Point::isAlive).findFirst();
-                    if (cheatPoint.isPresent()) {
-                        attack = cheatPoint.get();
-                    }
-                }
-
-            } else {
-                Point hitPoint = hitPoints.get(0);
+            if (hitShip.isPresent()) {
                 List<Point> attackPoints = new ArrayList<>();
+                List<Point> hitPoints = hitShip.get().getPoints().stream()
+                        .filter(point -> !point.isAlive())
+                        .collect(Collectors.toList());
 
-                if (hitPoint.getX() + 1 < board.getColum()) {
-                    attackPoints.add(new Point(hitPoint.getX() + 1, hitPoint.getY()));
+                if (hitPoints.size() > 1 && hitPoints.get(0).getX() == hitPoints.get(hitPoints.size() - 1).getX()) {
+
+                    if (
+                            (hitPoints.get(hitPoints.size() - 1).getY() + 1 < board.getRow())
+                                    && !board.getMisses().contains(new Point(hitPoints.get(hitPoints.size() - 1).getX(), hitPoints.get(hitPoints.size() - 1).getY() + 1))
+                                    && !board.getHits().contains(new Point(hitPoints.get(hitPoints.size() - 1).getX(), hitPoints.get(hitPoints.size() - 1).getY() + 1))
+                    ) {
+                        attackPoints.add(new Point(hitPoints.get(hitPoints.size() - 1).getX(), hitPoints.get(hitPoints.size() - 1).getY() + 1));
+                    }
+
+                    if (
+                            (hitPoints.get(0).getY() - 1 >= 0)
+                                    && !board.getMisses().contains(new Point(hitPoints.get(0).getX(), hitPoints.get(0).getY() - 1))
+                                    && !board.getHits().contains(new Point(hitPoints.get(0).getX(), hitPoints.get(0).getY() - 1))
+                    ) {
+                        attackPoints.add(new Point(hitPoints.get(0).getX(), hitPoints.get(0).getY() - 1));
+                    }
+
+                    attackPoints.removeAll(board.getHits());
+                    attackPoints.removeAll(board.getMisses());
+
+                    attack = attackPoints.get(random.nextInt(attackPoints.size()));
+
+                } else if (hitPoints.size() > 1 && hitPoints.get(0).getY() == hitPoints.get(hitPoints.size() - 1).getY()) {
+
+                    if (
+                            (hitPoints.get(hitPoints.size() - 1).getX() + 1 < board.getColum())
+                                    && !board.getMisses().contains(new Point(hitPoints.get(hitPoints.size() - 1).getX() + 1, hitPoints.get(hitPoints.size() - 1).getY()))
+                                    && !board.getHits().contains(new Point(hitPoints.get(hitPoints.size() - 1).getX() + 1, hitPoints.get(hitPoints.size() - 1).getY()))
+                    ) {
+                        attackPoints.add(new Point(hitPoints.get(hitPoints.size() - 1).getX() + 1, hitPoints.get(hitPoints.size() - 1).getY()));
+
+                    }
+
+                    if (
+                            (hitPoints.get(0).getX() - 1 >= 0)
+                                    && !board.getMisses().contains(new Point(hitPoints.get(0).getX() - 1, hitPoints.get(0).getY()))
+                                    && !board.getHits().contains(new Point(hitPoints.get(0).getX() - 1, hitPoints.get(0).getY()))
+                    ) {
+                        attackPoints.add(new Point(hitPoints.get(0).getX() - 1, hitPoints.get(0).getY()));
+                    }
+
+                    attackPoints.removeAll(board.getHits());
+                    attackPoints.removeAll(board.getMisses());
+
+                    attack = attackPoints.get(random.nextInt(attackPoints.size()));
+
+                } else {
+                    Point hitPoint = hitPoints.get(0);
+
+                    if (hitPoint.getX() + 1 < board.getColum()) {
+                        attackPoints.add(new Point(hitPoint.getX() + 1, hitPoint.getY()));
+                    }
+
+                    if (hitPoint.getX() - 1 >= 0) {
+                        attackPoints.add(new Point(hitPoint.getX() - 1, hitPoint.getY()));
+                    }
+
+                    if (hitPoint.getY() + 1 < board.getRow()) {
+                        attackPoints.add(new Point(hitPoint.getX(), hitPoint.getY() + 1));
+                    }
+
+                    if (hitPoint.getY() - 1 >= 0) {
+                        attackPoints.add(new Point(hitPoint.getX(), hitPoint.getY() - 1));
+                    }
+
+                    attackPoints.removeAll(board.getHits());
+                    attackPoints.removeAll(board.getMisses());
+
+                    attack = attackPoints.get(random.nextInt(attackPoints.size()));
                 }
-
-                if (hitPoint.getX() - 1 >= 0) {
-                    attackPoints.add(new Point(hitPoint.getX() - 1, hitPoint.getY()));
-                }
-
-                if (hitPoint.getY() + 1 < board.getRow()) {
-                    attackPoints.add(new Point(hitPoint.getX(), hitPoint.getY() + 1));
-                }
-
-                if (hitPoint.getY() - 1 >= 0) {
-                    attackPoints.add(new Point(hitPoint.getX(), hitPoint.getY() - 1));
-                }
-
-                attackPoints.removeAll(board.getHits());
-                attackPoints.removeAll(board.getMisses());
-
-                attack = attackPoints.get(random.nextInt(attackPoints.size()));
             }
+
+
         }
 
         if (Objects.isNull(attack)) {
@@ -254,10 +271,10 @@ public class Game {
             board.getMisses().add(attack);
         }
 
-        setDestroyed(board, attack);
+        setDestroyed(board, attack, level);
     }
 
-    private boolean attackShip(Board board, Point attack) {
+    private boolean attackShip(Board board, Point attack, DifficultyLevel level) {
         try {
             if (attack.getX() >= board.getColum() || attack.getX() < 0) {
                 throw new OutOfBoardException(String.format("x: %s is out of columns", attack.getX()));
@@ -288,7 +305,7 @@ public class Game {
             System.out.println(e.getMessage());
             return false;
         }
-        setDestroyed(board, attack);
+        setDestroyed(board, attack, level);
 
         return true;
     }
@@ -300,7 +317,7 @@ public class Game {
         return new Point(x, y);
     }
 
-    private void setDestroyed(Board board, Point attack) {
+    private void setDestroyed(Board board, Point attack, DifficultyLevel level) {
 
         board.getShips().stream()
                 .filter(ship -> ship.getPoints().contains(attack) && ship.getPoints().stream().noneMatch(Point::isAlive))
@@ -310,8 +327,55 @@ public class Game {
 
                     List<Point> misses = new ArrayList<>();
 
+                    if (DifficultyLevel.HARDCORE.equals(level)) {
+                        if (
+                                ship.getPoints().size() > 1 &&  ship.getPoints().get(0).getX() == ship.getPoints().get(ship.getPoints().size() - 1).getX()
+                        ) {
+                            if (ship.getPoints().get(0).getX() - 1 >= 0 && ship.getPoints().get(0).getY() - 1 >= 0) {
+                                misses.add(new Point(ship.getPoints().get(0).getX() - 1,ship.getPoints().get(0).getY() - 1));
+                            }
+                            if (ship.getPoints().get(0).getX() + 1  < board.getColum() && ship.getPoints().get(0).getY() - 1 >= 0) {
+                                misses.add(new Point(ship.getPoints().get(0).getX() + 1,ship.getPoints().get(0).getY() - 1));
+                            }
+                            if (ship.getPoints().get(ship.getPoints().size() - 1).getX() - 1 >= 0 && ship.getPoints().get(ship.getPoints().size() - 1).getY() + 1 < board.getRow()) {
+                                misses.add(new Point(ship.getPoints().get(ship.getPoints().size() - 1).getX() - 1,ship.getPoints().get(ship.getPoints().size() - 1).getY() + 1));
+                            }
+                            if (ship.getPoints().get(ship.getPoints().size() - 1).getX() + 1 < board.getColum() && ship.getPoints().get(ship.getPoints().size() - 1).getY() + 1 < board.getRow()) {
+                                misses.add(new Point(ship.getPoints().get(ship.getPoints().size() - 1).getX() + 1,ship.getPoints().get(ship.getPoints().size() - 1).getY() + 1));
+                            }
+                        } else if (
+                                ship.getPoints().size() > 1 &&  ship.getPoints().get(0).getY() == ship.getPoints().get(ship.getPoints().size() - 1).getY()
+                        ) {
+                            if (ship.getPoints().get(0).getX() - 1 >= 0 && ship.getPoints().get(0).getY() - 1 >= 0) {
+                                misses.add(new Point(ship.getPoints().get(0).getX() - 1, ship.getPoints().get(0).getY() - 1));
+                            }
+                            if (ship.getPoints().get(0).getX() - 1 >= 0 && ship.getPoints().get(0).getY() + 1 < board.getRow()) {
+                                misses.add(new Point(ship.getPoints().get(0).getX() - 1, ship.getPoints().get(0).getY() + 1));
+                            }
+                            if (ship.getPoints().get(ship.getPoints().size() - 1).getX() + 1 < board.getColum() && ship.getPoints().get(ship.getPoints().size() - 1).getY() - 1 >= 0) {
+                                misses.add(new Point(ship.getPoints().get(ship.getPoints().size() - 1).getX() + 1, ship.getPoints().get(ship.getPoints().size() - 1).getY() - 1));
+                            }
+                            if (ship.getPoints().get(ship.getPoints().size() - 1).getX() + 1 < board.getColum() && ship.getPoints().get(ship.getPoints().size() - 1).getY() + 1 < board.getRow()) {
+                                misses.add(new Point(ship.getPoints().get(ship.getPoints().size() - 1).getX() + 1, ship.getPoints().get(ship.getPoints().size() - 1).getY() + 1));
+                            }
+                        } else {
+                            if (ship.getPoints().get(0).getX() - 1 >= 0 && ship.getPoints().get(0).getY() - 1 >= 0) {
+                                misses.add(new Point(ship.getPoints().get(0).getX() - 1, ship.getPoints().get(0).getY() - 1));
+                            }
+                            if (ship.getPoints().get(0).getX() - 1 >= 0 && ship.getPoints().get(0).getY() + 1 < board.getRow()) {
+                                misses.add(new Point(ship.getPoints().get(0).getX() - 1, ship.getPoints().get(0).getY() + 1));
+                            }
+                            if (ship.getPoints().get(0).getX() + 1 < board.getColum() && ship.getPoints().get(0).getY() + 1 < board.getRow()) {
+                                misses.add(new Point(ship.getPoints().get(0).getX() + 1, ship.getPoints().get(0).getY() + 1));
+                            }
+                            if (ship.getPoints().get(0).getX() + 1 < board.getColum() && ship.getPoints().get(0).getY() - 1 >= 0) {
+                                misses.add(new Point(ship.getPoints().get(0).getX() + 1, ship.getPoints().get(0).getY() - 1));
+                            }
+                        }
+                    }
+
                     ship.getPoints().forEach(point -> {
-                        if ((point.getX() + 1) < board.getColum() ) {
+                        if ((point.getX() + 1) < board.getColum()) {
                             misses.add(new Point(point.getX() + 1, point.getY()));
                         }
                         if ((point.getX() - 1) >= 0 ) {
