@@ -9,7 +9,7 @@ import java.io.InputStreamReader;
 
 @FieldDefaults(level = AccessLevel.PRIVATE)
 
-public class ReaderUtil {
+public final class ReaderUtil {
 
     static BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 
